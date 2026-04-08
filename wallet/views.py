@@ -3,17 +3,53 @@ from django.http import JsonResponse
 from django.views import View
 from django.views.decorators.http import require_http_methods
 from django.utils.decorators import method_decorator
+from django.contrib.auth.mixins import LoginRequiredMixin
 import json
+from .models import Wallet
 
 
 # Wallet Management Views
-class WalletListView(View):
+class WalletListView(LoginRequiredMixin, View):
     """
     List all wallets for authenticated user or retrieve paginated wallets list.
     Returns wallet address, status, network, and verification status.
     """
     def get(self, request):
-        pass
+        """
+        Retrieve all wallets for the authenticated user.
+        Returns paginated list with wallet details.
+        """
+        try:
+            # Get all active wallets for the current user
+            wallets = Wallet.objects.filter(user=request.user, is_active=True)
+
+            # Prepare wallet data for response
+            wallet_data = []
+            for wallet in wallets:
+                wallet_data.append({
+                    'id': wallet.id,
+                    'wallet_address': wallet.wallet_address,
+                    'network': wallet.network,
+                    'balance': str(wallet.balance),
+                    'available_balance': str(wallet.available_balance),
+                    'locked_balance': str(wallet.locked_balance),
+                    'is_verified': wallet.is_verified,
+                    'is_active': wallet.is_active,
+                    'created_at': wallet.created_at.isoformat()
+                })
+
+            return JsonResponse({
+                'success': True,
+                'count': len(wallet_data),
+                'wallets': wallet_data
+            })
+
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': 'Failed to retrieve wallets',
+                'message': str(e)
+            }, status=500)
 
 
 class WalletCreateView(View):
