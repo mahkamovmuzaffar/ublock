@@ -52,13 +52,72 @@ class WalletListView(LoginRequiredMixin, View):
             }, status=500)
 
 
-class WalletCreateView(View):
+class WalletCreateView(LoginRequiredMixin, View):
     """
     Create/Add a new wallet address for current user.
     Accepts wallet address, network type, and optional wallet label.
     """
     def post(self, request):
-        pass
+        try:
+            # Parse JSON data from request body
+            data = json.loads(request.body)
+            wallet_address = data.get('wallet_address')
+            network = data.get('network', 'ethereum')
+
+            # Validate wallet address
+            if not wallet_address:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Wallet address is required'
+                }, status=400)
+
+            # Basic validation for Ethereum address format
+            if not (wallet_address.startswith('0x') and len(wallet_address) == 42 and all(c in '0123456789abcdefABCDEF' for c in wallet_address[2:])):
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Invalid wallet address format'
+                }, status=400)
+
+            # Check if wallet address already exists
+            if Wallet.objects.filter(wallet_address=wallet_address).exists():
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Wallet address already exists'
+                }, status=400)
+
+            # Create new wallet
+            wallet = Wallet.objects.create(
+                user=request.user,
+                wallet_address=wallet_address,
+                network=network
+            )
+
+            return JsonResponse({
+                'success': True,
+                'wallet': {
+                    'id': wallet.id,
+                    'wallet_address': wallet.wallet_address,
+                    'network': wallet.network,
+                    'balance': str(wallet.balance),
+                    'available_balance': str(wallet.available_balance),
+                    'locked_balance': str(wallet.locked_balance),
+                    'is_verified': wallet.is_verified,
+                    'is_active': wallet.is_active,
+                    'created_at': wallet.created_at.isoformat()
+                }
+            }, status=201)
+
+        except json.JSONDecodeError:
+            return JsonResponse({
+                'success': False,
+                'error': 'Invalid JSON data'
+            }, status=400)
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': 'Failed to create wallet',
+                'message': str(e)
+            }, status=500)
 
 
 class WalletDetailView(View):
