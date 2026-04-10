@@ -120,13 +120,45 @@ class WalletCreateView(LoginRequiredMixin, View):
             }, status=500)
 
 
-class WalletDetailView(View):
+class WalletDetailView(LoginRequiredMixin, View):
     """
     Get detailed information about a specific wallet.
     Returns address, balance, network, verification status, and creation date.
     """
     def get(self, request, wallet_id):
-        pass
+        try:
+            # Get the specific wallet for the authenticated user
+            wallet = Wallet.objects.get(id=wallet_id, user=request.user, is_active=True)
+
+            # Prepare wallet data for response
+            wallet_data = {
+                'id': wallet.id,
+                'wallet_address': wallet.wallet_address,
+                'network': wallet.network,
+                'balance': str(wallet.balance),
+                'available_balance': str(wallet.available_balance),
+                'locked_balance': str(wallet.locked_balance),
+                'is_verified': wallet.is_verified,
+                'is_active': wallet.is_active,
+                'created_at': wallet.created_at.isoformat()
+            }
+
+            return JsonResponse({
+                'success': True,
+                'wallet': wallet_data
+            })
+
+        except Wallet.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Wallet not found'
+            }, status=404)
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': 'Failed to retrieve wallet details',
+                'message': str(e)
+            }, status=500)
 
 
 class WalletUpdateView(View):
