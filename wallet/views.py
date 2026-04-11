@@ -144,7 +144,7 @@ class WalletDetailView(LoginRequiredMixin, View):
             }
 
             return JsonResponse({
-                'success': True,
+                'success': True, #
                 'wallet': wallet_data
             })
 
@@ -167,6 +167,7 @@ class WalletUpdateView(View):
     Does NOT modify the actual blockchain address.
     """
     def put(self, request, wallet_id):
+        Why wallet update is not implemented?
         pass
 
 
