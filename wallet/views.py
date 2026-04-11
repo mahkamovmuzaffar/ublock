@@ -30,6 +30,8 @@ class WalletListView(LoginRequiredMixin, View):
                     'id': wallet.id,
                     'wallet_address': wallet.wallet_address,
                     'network': wallet.network,
+                    'label': wallet.label,
+                    'description': wallet.description,
                     'balance': str(wallet.balance),
                     'available_balance': str(wallet.available_balance),
                     'locked_balance': str(wallet.locked_balance),
@@ -63,6 +65,8 @@ class WalletCreateView(LoginRequiredMixin, View):
             data = json.loads(request.body)
             wallet_address = data.get('wallet_address')
             network = data.get('network', 'ethereum')
+            label = data.get('label')
+            description = data.get('description')
 
             # Validate wallet address
             if not wallet_address:
@@ -89,7 +93,9 @@ class WalletCreateView(LoginRequiredMixin, View):
             wallet = Wallet.objects.create(
                 user=request.user,
                 wallet_address=wallet_address,
-                network=network
+                network=network,
+                label=label,
+                description=description
             )
 
             return JsonResponse({
@@ -98,6 +104,8 @@ class WalletCreateView(LoginRequiredMixin, View):
                     'id': wallet.id,
                     'wallet_address': wallet.wallet_address,
                     'network': wallet.network,
+                    'label': wallet.label,
+                    'description': wallet.description,
                     'balance': str(wallet.balance),
                     'available_balance': str(wallet.available_balance),
                     'locked_balance': str(wallet.locked_balance),
@@ -135,6 +143,8 @@ class WalletDetailView(LoginRequiredMixin, View):
                 'id': wallet.id,
                 'wallet_address': wallet.wallet_address,
                 'network': wallet.network,
+                'label': wallet.label,
+                'description': wallet.description,
                 'balance': str(wallet.balance),
                 'available_balance': str(wallet.available_balance),
                 'locked_balance': str(wallet.locked_balance),
@@ -161,14 +171,67 @@ class WalletDetailView(LoginRequiredMixin, View):
             }, status=500)
 
 
-class WalletUpdateView(View):
+class WalletUpdateView(LoginRequiredMixin, View):
     """
     Update wallet metadata (label, description, or other non-address fields).
     Does NOT modify the actual blockchain address.
     """
     def put(self, request, wallet_id):
-        Why wallet update is not implemented?
-        pass
+        try:
+            # Get the specific wallet for the authenticated user
+            wallet = Wallet.objects.get(id=wallet_id, user=request.user, is_active=True)
+
+            # Parse JSON data from request body
+            data = json.loads(request.body)
+
+            # Update allowed fields
+            if 'label' in data:
+                wallet.label = data['label']
+            if 'description' in data:
+                wallet.description = data['description']
+            if 'network' in data:
+                wallet.network = data['network']
+
+            # Save the updated wallet
+            wallet.save()
+
+            # Prepare updated wallet data for response
+            wallet_data = {
+                'id': wallet.id,
+                'wallet_address': wallet.wallet_address,
+                'network': wallet.network,
+                'label': wallet.label,
+                'description': wallet.description,
+                'balance': str(wallet.balance),
+                'available_balance': str(wallet.available_balance),
+                'locked_balance': str(wallet.locked_balance),
+                'is_verified': wallet.is_verified,
+                'is_active': wallet.is_active,
+                'created_at': wallet.created_at.isoformat()
+            }
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Wallet updated successfully',
+                'wallet': wallet_data
+            })
+
+        except Wallet.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Wallet not found'
+            }, status=404)
+        except json.JSONDecodeError:
+            return JsonResponse({
+                'success': False,
+                'error': 'Invalid JSON data'
+            }, status=400)
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': 'Failed to update wallet',
+                'message': str(e)
+            }, status=500)
 
 
 class WalletDeleteView(View):

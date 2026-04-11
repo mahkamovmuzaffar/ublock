@@ -14,6 +14,8 @@ class Wallet(models.Model):
     locked_balance = models.DecimalField(max_digits=36, decimal_places=18, default=0)
     is_active = models.BooleanField(default=True)
     is_verified = models.BooleanField(default=False)  # verification status
+    label = models.CharField(max_length=100, blank=True, null=True)  # optional wallet label
+    description = models.TextField(blank=True, null=True)  # optional description
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
