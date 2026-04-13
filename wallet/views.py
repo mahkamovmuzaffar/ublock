@@ -234,13 +234,36 @@ class WalletUpdateView(LoginRequiredMixin, View):
             }, status=500)
 
 
-class WalletDeleteView(View):
+class WalletDeleteView(LoginRequiredMixin, View):
     """
     Delete/remove a wallet from user's wallet list.
     May require additional verification before deletion.
     """
     def delete(self, request, wallet_id):
-        pass
+        try:
+            # Get the specific wallet for the authenticated user
+            wallet = Wallet.objects.get(id=wallet_id, user=request.user, is_active=True)
+
+            # Soft delete by setting is_active to False
+            wallet.is_active = False
+            wallet.save()
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Wallet deleted successfully'
+            })
+
+        except Wallet.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Wallet not found'
+            }, status=404)
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': 'Failed to delete wallet',
+                'message': str(e)
+            }, status=500)
 
 
 class WalletVerifyView(View):
