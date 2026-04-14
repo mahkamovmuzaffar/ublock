@@ -4,8 +4,21 @@ from django.views import View
 from django.views.decorators.http import require_http_methods
 from django.utils.decorators import method_decorator
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.utils import timezone
+from django.core.cache import cache
 import json
+import secrets
 from .models import Wallet
+
+try:
+    from eth_keys import keys
+    from eth_utils import to_bytes, keccak
+    from web3 import Web3
+except ImportError:
+    # Fallback if web3 packages are not installed
+    keys = None
+    keccak = None
+    Web3 = None
 
 
 # Wallet Management Views
@@ -269,10 +282,199 @@ class WalletDeleteView(LoginRequiredMixin, View):
 class WalletVerifyView(View):
     """
     Verify wallet ownership by signing a challenge message.
-    User must sign provided challenge with their private key to prove ownership.
+    Supports two-step verification:
+    1. POST with 'action': 'request_challenge' - returns a challenge message to sign
+    2. POST with 'action': 'verify_signature' - verifies the signed challenge
     """
-    def post(self, request, wallet_id):
-        pass
+    
+    @staticmethod
+    def _generate_challenge():
+        """Generate a random challenge message for user to sign."""
+        return f"Verify wallet ownership - {secrets.token_hex(16)}"
+    
+    @staticmethod
+    def _verify_signature(wallet_address, message, signature):
+        """
+        Verify that the signature is valid for the message using the wallet address.
+        Returns True if signature is valid, False otherwise.
+        """
+        if not Web3 or not keys:
+            return False
+        
+        try:
+            # Normalize wallet address
+            wallet_address = Web3.to_checksum_address(wallet_address)
+            
+            # Remove '0x' prefix from signature if present
+            if signature.startswith('0x'):
+                signature = signature[2:]
+            
+            # Convert signature hex to bytes
+            signature_bytes = bytes.fromhex(signature)
+            
+            # The message that was signed
+            message_hash = Web3.keccak(text=message)
+            
+            # Recover the public key from signature
+            # Ethereum signatures are typically 65 bytes (130 hex chars)
+            if len(signature_bytes) == 65:
+                v = signature_bytes[64]
+                r = int.from_bytes(signature_bytes[0:32], 'big')
+                s = int.from_bytes(signature_bytes[32:64], 'big')
+                
+                # Create signature object
+                sig = keys.Signature(vrs=(v, r, s))
+                
+                # Recover public key
+                recovered_key = keys.PublicKey.recover_from_msg_hash(message_hash, sig)
+                recovered_address = Web3.to_checksum_address(recovered_key.to_checksum_address())
+                
+                return recovered_address.lower() == wallet_address.lower()
+        except Exception as e:
+            # Log error for debugging
+            print(f"Signature verification error: {str(e)}")
+            return False
+        
+        return False
+    
+    def post(self, request, wallet_id=None):
+        """
+        Handle wallet verification requests.
+        POST with action 'request_challenge' or 'verify_signature'.
+        """
+        try:
+            data = json.loads(request.body)
+            action = data.get('action')
+            
+            if action == 'request_challenge':
+                return self._request_challenge(request, wallet_id, data)
+            elif action == 'verify_signature':
+                return self._verify_signature_request(request, wallet_id, data)
+            else:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Invalid action. Use "request_challenge" or "verify_signature"'
+                }, status=400)
+        
+        except json.JSONDecodeError:
+            return JsonResponse({
+                'success': False,
+                'error': 'Invalid JSON data'
+            }, status=400)
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': 'Wallet verification failed',
+                'message': str(e)
+            }, status=500)
+    
+    def _request_challenge(self, request, wallet_id, data):
+        """Generate and return a challenge for the user to sign."""
+        try:
+            wallet_address = data.get('wallet_address')
+            
+            if not wallet_address:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Wallet address is required'
+                }, status=400)
+            
+            # Validate Ethereum address format
+            if not (wallet_address.startswith('0x') and len(wallet_address) == 42):
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Invalid wallet address format'
+                }, status=400)
+            
+            # Generate challenge
+            challenge = self._generate_challenge()
+            
+            # Store challenge in cache with 15-minute expiration
+            cache_key = f"wallet_challenge_{wallet_address}"
+            cache.set(cache_key, challenge, 900)  # 15 minutes
+            
+            return JsonResponse({
+                'success': True,
+                'challenge': challenge,
+                'message': 'Please sign this message with your wallet private key',
+                'expires_in': 900
+            })
+        
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': 'Failed to generate challenge',
+                'message': str(e)
+            }, status=500)
+    
+    def _verify_signature_request(self, request, wallet_id, data):
+        """Verify the signed challenge and mark wallet as verified."""
+        try:
+            wallet_address = data.get('wallet_address')
+            signature = data.get('signature')
+            
+            if not wallet_address or not signature:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Wallet address and signature are required'
+                }, status=400)
+            
+            # Retrieve stored challenge from cache
+            cache_key = f"wallet_challenge_{wallet_address}"
+            challenge = cache.get(cache_key)
+            
+            if not challenge:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'No active challenge found. Request a new challenge first.'
+                }, status=400)
+            
+            # Verify the signature
+            if not self._verify_signature(wallet_address, challenge, signature):
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Invalid signature. Wallet ownership verification failed.'
+                }, status=401)
+            
+            # Clear the used challenge
+            cache.delete(cache_key)
+            
+            # Update wallet verification status
+            try:
+                wallet = Wallet.objects.get(
+                    wallet_address=wallet_address,
+                    is_active=True
+                )
+                wallet.is_verified = True
+                wallet.save()
+                
+                wallet_data = {
+                    'id': wallet.id,
+                    'wallet_address': wallet.wallet_address,
+                    'network': wallet.network,
+                    'label': wallet.label,
+                    'is_verified': wallet.is_verified,
+                    'verified_at': timezone.now().isoformat()
+                }
+                
+                return JsonResponse({
+                    'success': True,
+                    'message': 'Wallet verified successfully',
+                    'wallet': wallet_data
+                })
+            
+            except Wallet.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Wallet not found in system'
+                }, status=404)
+        
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': 'Signature verification failed',
+                'message': str(e)
+            }, status=500)
 
 
 class WalletLinkUserView(View):
