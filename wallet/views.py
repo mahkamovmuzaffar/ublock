@@ -484,21 +484,61 @@ class WalletLinkUserView(LoginRequiredMixin, View):
     """
     def post(self, request, wallet_id):
         try:
+            # Load the wallet record and ensure it is active
             wallet = Wallet.objects.get(id=wallet_id, is_active=True)
 
+            # Reject if another user already owns this wallet
             if wallet.user != request.user:
                 return JsonResponse({
                     'success': False,
                     'error': 'Wallet is already linked to another user'
                 }, status=403)
 
+            # Reject if the wallet has not been verified yet
             if not wallet.is_verified:
                 return JsonResponse({
                     'success': False,
                     'error': 'Wallet must be verified before linking'
                 }, status=400)
 
-          
+            # Build the wallet payload to return after successful linking
+            wallet_data = {
+                'id': wallet.id,
+                'wallet_address': wallet.wallet_address,
+                'network': wallet.network,
+                'label': wallet.label,
+                'description': wallet.description,
+                'balance': str(wallet.balance),
+                'available_balance': str(wallet.available_balance),
+                'locked_balance': str(wallet.locked_balance),
+                'is_verified': wallet.is_verified,
+                'is_active': wallet.is_active,
+                'created_at': wallet.created_at.isoformat()
+            }
+
+            # Return success response once linking checks are complete
+            return JsonResponse({
+                'success': True,
+                'message': 'Wallet successfully linked to user account',
+                'wallet': wallet_data
+            })
+
+        except Wallet.DoesNotExist:
+            # Wallet does not exist or is inactive
+            return JsonResponse({
+                'success': False,
+                'error': 'Wallet not found'
+            }, status=404)
+        except Exception as e:
+            # Unexpected error while attempting to link the wallet
+            return JsonResponse({
+                'success': False,
+                'error': 'Failed to link wallet',
+                'message': str(e)
+            }, status=500) 
+        
+
+
 
 
 class WalletBalanceView(View):
