@@ -477,13 +477,28 @@ class WalletVerifyView(View):
             }, status=500)
 
 
-class WalletLinkUserView(View):
+class WalletLinkUserView(LoginRequiredMixin, View):
     """
     Link wallet to user account after verification.
     Associates blockchain wallet with Django user record.
     """
     def post(self, request, wallet_id):
-        pass
+        try:
+            wallet = Wallet.objects.get(id=wallet_id, is_active=True)
+
+            if wallet.user != request.user:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Wallet is already linked to another user'
+                }, status=403)
+
+            if not wallet.is_verified:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Wallet must be verified before linking'
+                }, status=400)
+
+          
 
 
 class WalletBalanceView(View):
