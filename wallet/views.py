@@ -541,13 +541,95 @@ class WalletLinkUserView(LoginRequiredMixin, View):
 
 
 
-class WalletBalanceView(View):
+class WalletBalanceView(LoginRequiredMixin, View):
     """
     Get current balance of a specific wallet.
     Fetches balance from blockchain network.
     """
+
+    # Network RPC configurations
+    NETWORK_RPCS = {
+        'ethereum': 'https://mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID',  # Replace with actual Infura ID or use public RPC
+        'polygon': 'https://polygon-rpc.com/',
+        'bsc': 'https://bsc-dataseed1.binance.org/',
+        'arbitrum': 'https://arb1.arbitrum.io/rpc',
+        'optimism': 'https://mainnet.optimism.io',
+    }
+
     def get(self, request, wallet_id):
-        pass
+        try:
+            # Get the specific wallet for the authenticated user
+            wallet = Wallet.objects.get(id=wallet_id, user=request.user, is_active=True)
+
+            # Get RPC URL for the network
+            rpc_url = self.NETWORK_RPCS.get(wallet.network.lower())
+            if not rpc_url:
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Unsupported network: {wallet.network}'
+                }, status=400)
+
+            # Check if Web3 is available
+            if not Web3:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Web3 library not available'
+                }, status=500)
+
+            # Connect to blockchain
+            w3 = Web3(Web3.HTTPProvider(rpc_url))
+
+            # Check connection
+            if not w3.is_connected():
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Unable to connect to blockchain network'
+                }, status=500)
+
+            # Get balance from blockchain
+            checksum_address = Web3.to_checksum_address(wallet.wallet_address)
+            balance_wei = w3.eth.get_balance(checksum_address)
+
+            # Convert wei to ether (or native token)
+            balance_eth = Web3.from_wei(balance_wei, 'ether')
+
+            # Update wallet balance in database
+            wallet.balance = balance_eth
+            wallet.save()
+
+            return JsonResponse({
+                'success': True,
+                'wallet_id': wallet.id,
+                'wallet_address': wallet.wallet_address,
+                'network': wallet.network,
+                'balance': str(balance_eth),
+                'balance_wei': str(balance_wei),
+                'symbol': self._get_network_symbol(wallet.network),
+                'last_updated': timezone.now().isoformat()
+            })
+
+        except Wallet.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Wallet not found'
+            }, status=404)
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': 'Failed to fetch wallet balance',
+                'message': str(e)
+            }, status=500)
+
+    def _get_network_symbol(self, network):
+        """Get the native token symbol for the network"""
+        symbols = {
+            'ethereum': 'ETH',
+            'polygon': 'MATIC',
+            'bsc': 'BNB',
+            'arbitrum': 'ETH',
+            'optimism': 'ETH',
+        }
+        return symbols.get(network.lower(), 'TOKEN')
 
 
 class WalletTransactionHistoryView(View):
