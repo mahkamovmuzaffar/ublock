@@ -632,13 +632,126 @@ class WalletBalanceView(LoginRequiredMixin, View):
         return symbols.get(network.lower(), 'TOKEN')
 
 
-class WalletTransactionHistoryView(View):
+class WalletTransactionHistoryView(LoginRequiredMixin, View):
     """
     Get transaction history for a specific wallet.
     Returns paginated list of incoming and outgoing transactions with timestamps.
     """
+
+    EXPLORER_APIS = {
+        'ethereum': 'https://api.etherscan.io/api',
+        'polygon': 'https://api.polygonscan.com/api',
+        'bsc': 'https://api.bscscan.com/api',
+        'arbitrum': 'https://api.arbiscan.io/api',
+        'optimism': 'https://api-optimistic.etherscan.io/api',
+    }
+
+    EXPLORER_API_KEYS = {
+        'ethereum': 'YOUR_ETHERSCAN_API_KEY',
+        'polygon': 'YOUR_POLYGONSCAN_API_KEY',
+        'bsc': 'YOUR_BSCSCAN_API_KEY',
+        'arbitrum': 'YOUR_ARBISCAN_API_KEY',
+        'optimism': 'YOUR_OPTIMISM_ETHERSCAN_API_KEY',
+    }
+
     def get(self, request, wallet_id):
-        pass
+        try:
+            wallet = Wallet.objects.get(id=wallet_id, user=request.user, is_active=True)
+
+            # Pagination params
+            page = int(request.GET.get('page', 1))
+            page_size = min(int(request.GET.get('page_size', 10)), 100)
+
+            explorer_url = self.EXPLORER_APIS.get(wallet.network.lower())
+            if not explorer_url:
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Unsupported network: {wallet.network}'
+                }, status=400)
+
+            import urllib.request
+            import urllib.parse
+
+            api_key = self.EXPLORER_API_KEYS.get(wallet.network.lower(), '')
+            params = urllib.parse.urlencode({
+                'module': 'account',
+                'action': 'txlist',
+                'address': wallet.wallet_address,
+                'startblock': 0,
+                'endblock': 99999999,
+                'page': page,
+                'offset': page_size,
+                'sort': 'desc',
+                'apikey': api_key,
+            })
+
+            req = urllib.request.Request(
+                f'{explorer_url}?{params}',
+                headers={'User-Agent': 'ublock-wallet/1.0'}
+            )
+            with urllib.request.urlopen(req, timeout=10) as response:
+                import json as _json
+                data = _json.loads(response.read().decode())
+
+            if data.get('status') != '1' and data.get('message') != 'No transactions found':
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Failed to fetch transaction history from explorer',
+                    'message': data.get('message', '')
+                }, status=502)
+
+            raw_txs = data.get('result', [])
+            if not isinstance(raw_txs, list):
+                raw_txs = []
+
+            transactions = []
+            for tx in raw_txs:
+                direction = (
+                    'incoming' if tx.get('to', '').lower() == wallet.wallet_address.lower()
+                    else 'outgoing'
+                )
+                value_wei = int(tx.get('value', 0))
+                value_eth = Web3.from_wei(value_wei, 'ether') if Web3 else value_wei / 10**18
+                transactions.append({
+                    'hash': tx.get('hash'),
+                    'block_number': tx.get('blockNumber'),
+                    'timestamp': timezone.datetime.fromtimestamp(
+                        int(tx.get('timeStamp', 0)), tz=timezone.utc
+                    ).isoformat(),
+                    'from': tx.get('from'),
+                    'to': tx.get('to'),
+                    'value': str(value_eth),
+                    'value_wei': str(value_wei),
+                    'gas': tx.get('gas'),
+                    'gas_used': tx.get('gasUsed'),
+                    'gas_price': tx.get('gasPrice'),
+                    'is_error': tx.get('isError') == '1',
+                    'direction': direction,
+                    'confirmations': tx.get('confirmations'),
+                })
+
+            return JsonResponse({
+                'success': True,
+                'wallet_id': wallet.id,
+                'wallet_address': wallet.wallet_address,
+                'network': wallet.network,
+                'page': page,
+                'page_size': page_size,
+                'count': len(transactions),
+                'transactions': transactions,
+            })
+
+        except Wallet.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Wallet not found'
+            }, status=404)
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': 'Failed to fetch transaction history',
+                'message': str(e)
+            }, status=500)
 
 
 class WalletNetworkListView(View):
