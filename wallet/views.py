@@ -718,5 +718,53 @@ class WalletNetworkListView(View):
     Get list of supported blockchain networks.
     Returns available networks for wallet linking (Ethereum, Polygon, etc).
     """
+
+    NETWORKS = [
+        {
+            'id': 'ethereum',
+            'name': 'Ethereum',
+            'symbol': 'ETH',
+            'chain_id': 1,
+            'explorer_url': 'https://etherscan.io',
+            'rpc_url': 'https://mainnet.infura.io/v3/',
+        },
+        {
+            'id': 'polygon',
+            'name': 'Polygon',
+            'symbol': 'MATIC',
+            'chain_id': 137,
+            'explorer_url': 'https://polygonscan.com',
+            'rpc_url': 'https://polygon-rpc.com/',
+        },
+        {
+            'id': 'bsc',
+            'name': 'BNB Smart Chain',
+            'symbol': 'BNB',
+            'chain_id': 56,
+            'explorer_url': 'https://bscscan.com',
+            'rpc_url': 'https://bsc-dataseed1.binance.org/',
+        },
+        {
+            'id': 'arbitrum',
+            'name': 'Arbitrum One',
+            'symbol': 'ETH',
+            'chain_id': 42161,
+            'explorer_url': 'https://arbiscan.io',
+            'rpc_url': 'https://arb1.arbitrum.io/rpc',
+        },
+        {
+            'id': 'optimism',
+            'name': 'Optimism',
+            'symbol': 'ETH',
+            'chain_id': 10,
+            'explorer_url': 'https://optimistic.etherscan.io',
+            'rpc_url': 'https://mainnet.optimism.io',
+        },
+    ]
+
     def get(self, request):
-        pass
+        return JsonResponse({
+            'success': True,
+            'count': len(self.NETWORKS),
+            'networks': self.NETWORKS,
+        })
