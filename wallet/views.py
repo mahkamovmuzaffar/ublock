@@ -719,6 +719,9 @@ class WalletNetworkListView(View):
     Returns available networks for wallet linking (Ethereum, Polygon, etc).
     """
 
+    # Static list of supported networks. Add a new entry here when onboarding
+    # a new chain — WalletBalanceView.NETWORK_RPCS and
+    # WalletTransactionHistoryView.EXPLORER_APIS must be updated in sync.
     NETWORKS = [
         {
             'id': 'ethereum',
