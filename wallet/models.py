@@ -1,13 +1,12 @@
+from django.conf import settings
 from django.db import models
-from django.contrib.auth.models import User
 
-# Create your models here.
 
 class Wallet(models.Model):
     """
     Represents a user's blockchain wallet for token holdings.
     """
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='wallets')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='wallets')
     wallet_address = models.CharField(max_length=42, unique=True)  # Ethereum address format
     network = models.CharField(max_length=50, default='ethereum')  # blockchain network
     balance = models.DecimalField(max_digits=36, decimal_places=18, default=0)
