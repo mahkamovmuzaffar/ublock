@@ -18,6 +18,7 @@ class UserRegisterView(View):
     """
     def post(self, request):
         try:
+            # Parse incoming JSON body
             data = json.loads(request.body)
             username = data.get('username', '').strip()
             email = data.get('email', '').strip()
@@ -25,24 +26,28 @@ class UserRegisterView(View):
             first_name = data.get('first_name', '').strip()
             last_name = data.get('last_name', '').strip()
 
+            # Ensure all required fields are present
             if not username or not email or not password:
                 return JsonResponse({
                     'success': False,
                     'error': 'username, email, and password are required'
                 }, status=400)
 
+            # Reject duplicate username
             if User.objects.filter(username=username).exists():
                 return JsonResponse({
                     'success': False,
                     'error': 'Username already taken'
                 }, status=400)
 
+            # Reject duplicate email
             if User.objects.filter(email=email).exists():
                 return JsonResponse({
                     'success': False,
                     'error': 'Email already registered'
                 }, status=400)
 
+            # Create the user with a hashed password
             user = User.objects.create_user(
                 username=username,
                 email=email,
@@ -51,6 +56,7 @@ class UserRegisterView(View):
                 last_name=last_name,
             )
 
+            # Return the new user's public data
             return JsonResponse({
                 'success': True,
                 'message': 'Account created successfully',
@@ -77,32 +83,39 @@ class UserLoginView(View):
     """
     def post(self, request):
         try:
+            # Parse incoming JSON body
             data = json.loads(request.body)
             username = data.get('username', '').strip()
             password = data.get('password', '')
 
+            # Ensure credentials are provided
             if not username or not password:
                 return JsonResponse({
                     'success': False,
                     'error': 'Username and password are required'
                 }, status=400)
 
+            # Verify credentials against the database
             user = authenticate(request, username=username, password=password)
 
+            # Reject invalid credentials
             if not user:
                 return JsonResponse({
                     'success': False,
                     'error': 'Invalid credentials'
                 }, status=401)
 
+            # Reject disabled accounts
             if not user.is_active:
                 return JsonResponse({
                     'success': False,
                     'error': 'Account is disabled'
                 }, status=403)
 
+            # Create a session for the authenticated user
             login(request, user)
 
+            # Return user profile data on successful login
             return JsonResponse({
                 'success': True,
                 'message': 'Login successful',
@@ -128,6 +141,7 @@ class UserLogoutView(LoginRequiredMixin, View):
     End the current user session.
     """
     def post(self, request):
+        # Flush the session and clear the auth cookie
         logout(request)
         return JsonResponse({'success': True, 'message': 'Logged out successfully'})
 
@@ -138,7 +152,10 @@ class UserProfileView(LoginRequiredMixin, View):
     PUT  — update allowed profile fields (name, email, bio, phone_number).
     """
     def get(self, request):
+        # Read the user object attached to the current session
         user = request.user
+
+        # Return all public and account-level fields
         return JsonResponse({
             'success': True,
             'user': {
@@ -157,13 +174,16 @@ class UserProfileView(LoginRequiredMixin, View):
 
     def put(self, request):
         try:
+            # Parse incoming JSON body
             data = json.loads(request.body)
             user = request.user
 
+            # Apply any provided fields that are safe to update directly
             for field in ('first_name', 'last_name', 'bio', 'phone_number'):
                 if field in data:
                     setattr(user, field, data[field])
 
+            # Email needs a uniqueness check before applying
             if 'email' in data:
                 new_email = data['email'].strip()
                 if User.objects.filter(email=new_email).exclude(pk=user.pk).exists():
@@ -173,8 +193,10 @@ class UserProfileView(LoginRequiredMixin, View):
                     }, status=400)
                 user.email = new_email
 
+            # Persist all changes in a single write
             user.save()
 
+            # Return the updated profile
             return JsonResponse({
                 'success': True,
                 'message': 'Profile updated successfully',
@@ -206,39 +228,45 @@ class UserChangePasswordView(LoginRequiredMixin, View):
     """
     def post(self, request):
         try:
+            # Parse incoming JSON body
             data = json.loads(request.body)
             current_password = data.get('current_password', '')
             new_password = data.get('new_password', '')
             confirm_password = data.get('confirm_password', '')
 
+            # Ensure all three fields are present
             if not current_password or not new_password or not confirm_password:
                 return JsonResponse({
                     'success': False,
                     'error': 'current_password, new_password, and confirm_password are required'
                 }, status=400)
 
+            # Confirm the two new-password fields match
             if new_password != confirm_password:
                 return JsonResponse({
                     'success': False,
                     'error': 'New passwords do not match'
                 }, status=400)
 
+            # Verify the current password is correct before allowing the change
             if not request.user.check_password(current_password):
                 return JsonResponse({
                     'success': False,
                     'error': 'Current password is incorrect'
                 }, status=401)
 
+            # Enforce minimum password length
             if len(new_password) < 8:
                 return JsonResponse({
                     'success': False,
                     'error': 'New password must be at least 8 characters'
                 }, status=400)
 
+            # Hash and save the new password
             request.user.set_password(new_password)
             request.user.save()
 
-            # Re-authenticate to keep the session alive after password change
+            # Re-authenticate so the session stays alive after the password hash changes
             user = authenticate(request, username=request.user.username, password=new_password)
             if user:
                 login(request, user)
