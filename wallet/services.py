@@ -182,3 +182,123 @@ def sync_wallet_token(wallet_token, rpc_url, usd_price=None):
     )
 
     return balance
+
+
+# ── COINGECKO BASE URL ─────────────────────────────────────────────────────────
+# Public API — no API key required for basic price lookups.
+# Free tier limit: ~30 requests/minute. We cache all responses to stay well
+# within that limit even under moderate traffic.
+COINGECKO_BASE_URL = 'https://api.coingecko.com/api/v3'
+
+
+def fetch_token_prices(coingecko_ids):
+    """
+    Fetch the current USD price for one or more tokens in a single API call.
+
+    CoinGecko identifies tokens by a slug (e.g. 'tether', 'chainlink', 'uniswap').
+    These are stored on the Token model as Token.coingecko_id.
+
+    Args:
+        coingecko_ids — list of CoinGecko slug strings, e.g. ['tether', 'chainlink']
+
+    Returns:
+        dict mapping each id to its USD price as a Decimal:
+        { 'tether': Decimal('1.00'), 'chainlink': Decimal('14.23') }
+        Tokens not found in the response are omitted from the result.
+
+    Example usage:
+        prices = fetch_token_prices(['tether', 'uniswap'])
+        usdt_price = prices.get('tether', Decimal('0'))
+    """
+    # Step 1 — drop any ids that are empty or None (tokens without a CoinGecko id)
+    valid_ids = [i for i in coingecko_ids if i]
+    if not valid_ids:
+        return {}
+
+    # Step 2 — check the cache before hitting the network.
+    # Key is built from sorted ids so ['tether','link'] and ['link','tether']
+    # hit the same cache entry.
+    cache_key = 'coingecko_prices:' + ','.join(sorted(valid_ids))
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    # Step 3 — build the request URL.
+    # The /simple/price endpoint accepts a comma-separated list of ids
+    # and returns their prices in the requested vs_currencies.
+    params = urllib.parse.urlencode({
+        'ids': ','.join(valid_ids),
+        'vs_currencies': 'usd',
+    })
+    url = f'{COINGECKO_BASE_URL}/simple/price?{params}'
+
+    # Step 4 — make the HTTP GET request.
+    # We set a User-Agent header because CoinGecko blocks requests with none.
+    # Timeout of 5 seconds — price data is not worth hanging a request thread for.
+    req = urllib.request.Request(url, headers={'User-Agent': 'ublock-wallet/1.0'})
+    try:
+        with urllib.request.urlopen(req, timeout=5) as response:
+            data = json.loads(response.read().decode())
+    except Exception:
+        logger.exception('CoinGecko price fetch failed for ids: %s', valid_ids)
+        return {}
+
+    # Step 5 — flatten the nested response into { id: Decimal(price) }.
+    # Raw response looks like: { "tether": { "usd": 1.0 }, "chainlink": { "usd": 14.23 } }
+    # We convert float → Decimal via str() to avoid floating-point precision loss.
+    prices = {
+        token_id: Decimal(str(info['usd']))
+        for token_id, info in data.items()
+        if 'usd' in info
+    }
+
+    # Step 6 — cache for 60 seconds so repeated requests within the same minute
+    # don't count against the CoinGecko rate limit.
+    cache.set(cache_key, prices, 60)
+
+    logger.debug('Fetched CoinGecko prices for %s: %s', valid_ids, prices)
+    return prices
+
+
+def fetch_single_token_price(coingecko_id):
+    """
+    Convenience wrapper for fetching the price of one token.
+
+    Args:
+        coingecko_id — CoinGecko slug string, e.g. 'tether'
+
+    Returns:
+        Decimal price in USD, or Decimal('0') if not found.
+    """
+    if not coingecko_id:
+        return Decimal('0')
+    prices = fetch_token_prices([coingecko_id])
+    return prices.get(coingecko_id, Decimal('0'))
+
+
+def sync_wallet_token_with_price(wallet_token, rpc_url):
+    """
+    Full sync for a WalletToken — fetches balance AND current USD price together.
+
+    This is the preferred function to call from views because it handles
+    both blockchain and price API in one step, then saves everything.
+
+    Args:
+        wallet_token — WalletToken model instance to update
+        rpc_url      — HTTP endpoint of the blockchain node for this network
+
+    Returns:
+        dict with 'balance' and 'balance_usd' as Decimals
+    """
+    token = wallet_token.token
+
+    # Step 1 — fetch USD price from CoinGecko (cached, fast)
+    usd_price = fetch_single_token_price(token.coingecko_id)
+
+    # Step 2 — fetch on-chain balance and save everything via sync_wallet_token
+    balance = sync_wallet_token(wallet_token, rpc_url, usd_price=usd_price)
+
+    return {
+        'balance': balance,
+        'balance_usd': balance * usd_price,
+    }
