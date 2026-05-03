@@ -12,7 +12,8 @@ from django.http import JsonResponse
 from django.utils import timezone
 from django.views import View
 
-from .models import Wallet
+from .models import Token, Wallet, WalletToken
+from .services import fetch_token_metadata, sync_wallet_token_with_price
 
 try:
     from eth_keys import keys
@@ -22,6 +23,14 @@ except ImportError:
     Web3 = None
 
 logger = logging.getLogger(__name__)
+
+NETWORK_RPCS = {
+    'ethereum': os.environ.get('ETH_RPC_URL', 'https://mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID'),
+    'polygon': os.environ.get('POLYGON_RPC_URL', 'https://polygon-rpc.com/'),
+    'bsc': os.environ.get('BSC_RPC_URL', 'https://bsc-dataseed1.binance.org/'),
+    'arbitrum': os.environ.get('ARBITRUM_RPC_URL', 'https://arb1.arbitrum.io/rpc'),
+    'optimism': os.environ.get('OPTIMISM_RPC_URL', 'https://mainnet.optimism.io'),
+}
 
 
 def _is_valid_eth_address(address):
@@ -501,19 +510,11 @@ class WalletBalanceView(LoginRequiredMixin, View):
     Fetches balance from blockchain network.
     """
 
-    NETWORK_RPCS = {
-        'ethereum': os.environ.get('ETH_RPC_URL', 'https://mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID'),
-        'polygon': os.environ.get('POLYGON_RPC_URL', 'https://polygon-rpc.com/'),
-        'bsc': os.environ.get('BSC_RPC_URL', 'https://bsc-dataseed1.binance.org/'),
-        'arbitrum': os.environ.get('ARBITRUM_RPC_URL', 'https://arb1.arbitrum.io/rpc'),
-        'optimism': os.environ.get('OPTIMISM_RPC_URL', 'https://mainnet.optimism.io'),
-    }
-
     def get(self, request, wallet_id):
         try:
             wallet = Wallet.objects.get(id=wallet_id, user=request.user, is_active=True)
 
-            rpc_url = self.NETWORK_RPCS.get(wallet.network.lower())
+            rpc_url = NETWORK_RPCS.get(wallet.network.lower())
             if not rpc_url:
                 return JsonResponse({
                     'success': False,
