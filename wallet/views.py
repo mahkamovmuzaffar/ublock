@@ -772,3 +772,191 @@ class WalletNetworkListView(View):
             'count': len(self.NETWORKS),
             'networks': self.NETWORKS,
         })
+
+
+# ── Token helpers ─────────────────────────────────────────────────────────────
+
+def _serialize_token(token):
+    return {
+        'id': token.id,
+        'contract_address': token.contract_address,
+        'symbol': token.symbol,
+        'name': token.name,
+        'decimals': token.decimals,
+        'network': token.network,
+        'logo_url': token.logo_url,
+        'coingecko_id': token.coingecko_id,
+        'is_verified': token.is_verified,
+        'created_at': token.created_at.isoformat(),
+    }
+
+
+# ── Token Registry Views ──────────────────────────────────────────────────────
+
+class TokenListView(LoginRequiredMixin, View):
+    """
+    List all known tokens, optionally filtered by network.
+    GET /api/wallet/tokens/?network=ethereum
+    """
+    def get(self, request):
+        network = request.GET.get('network')
+        tokens = Token.objects.all()
+        if network:
+            tokens = tokens.filter(network=network)
+        token_data = [_serialize_token(t) for t in tokens]
+        return JsonResponse({'success': True, 'count': len(token_data), 'tokens': token_data})
+
+
+class TokenDetailView(LoginRequiredMixin, View):
+    """
+    Get metadata for a specific token by its DB id.
+    GET /api/wallet/tokens/<token_id>/
+    """
+    def get(self, request, token_id):
+        try:
+            token = Token.objects.get(id=token_id)
+        except Token.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Token not found'}, status=404)
+        return JsonResponse({'success': True, 'token': _serialize_token(token)})
+
+
+# ── Wallet-Token Management Views ─────────────────────────────────────────────
+
+class WalletTokenListView(LoginRequiredMixin, View):
+    """
+    List all tokens tracked by a wallet, with their cached balances.
+    GET /api/wallet/<wallet_id>/tokens/
+    """
+    def get(self, request, wallet_id):
+        try:
+            wallet = Wallet.objects.get(id=wallet_id, user=request.user, is_active=True)
+        except Wallet.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Wallet not found'}, status=404)
+
+        wallet_tokens = WalletToken.objects.select_related('token').filter(wallet=wallet)
+        data = []
+        for wt in wallet_tokens:
+            entry = _serialize_token(wt.token)
+            entry.update({
+                'balance': str(wt.balance),
+                'balance_usd': str(wt.balance_usd),
+                'last_synced_at': wt.last_synced_at.isoformat() if wt.last_synced_at else None,
+            })
+            data.append(entry)
+        return JsonResponse({'success': True, 'count': len(data), 'tokens': data})
+
+
+class WalletTokenAddView(LoginRequiredMixin, View):
+    """
+    Track a token for a wallet.
+    POST /api/wallet/<wallet_id>/tokens/add/
+    Body: { "contract_address": "0x...", "network": "ethereum", "name": "optional override" }
+    If the token is not yet in the DB, metadata (symbol, decimals) is fetched from chain.
+    """
+    def post(self, request, wallet_id):
+        try:
+            wallet = Wallet.objects.get(id=wallet_id, user=request.user, is_active=True)
+        except Wallet.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Wallet not found'}, status=404)
+
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'error': 'Invalid JSON data'}, status=400)
+
+        contract_address = (data.get('contract_address') or '').strip()
+        network = (data.get('network') or wallet.network).strip()
+
+        if not contract_address:
+            return JsonResponse({'success': False, 'error': 'contract_address is required'}, status=400)
+        if not _is_valid_eth_address(contract_address):
+            return JsonResponse({'success': False, 'error': 'Invalid contract address format'}, status=400)
+
+        token = Token.objects.filter(
+            contract_address__iexact=contract_address, network=network
+        ).first()
+
+        if not token:
+            rpc_url = NETWORK_RPCS.get(network.lower())
+            if not rpc_url:
+                return JsonResponse({'success': False, 'error': f'Unsupported network: {network}'}, status=400)
+            try:
+                metadata = fetch_token_metadata(rpc_url, contract_address)
+            except Exception:
+                logger.exception('Failed to fetch token metadata for %s on %s', contract_address, network)
+                return JsonResponse({'success': False, 'error': 'Failed to fetch token metadata from chain'}, status=502)
+
+            token = Token.objects.create(
+                contract_address=contract_address,
+                network=network,
+                symbol=metadata['symbol'],
+                decimals=metadata['decimals'],
+                name=data.get('name') or metadata['symbol'],
+            )
+
+        if WalletToken.objects.filter(wallet=wallet, token=token).exists():
+            return JsonResponse({'success': False, 'error': 'Token already tracked for this wallet'}, status=400)
+
+        WalletToken.objects.create(wallet=wallet, token=token)
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Token added to wallet',
+            'token': _serialize_token(token),
+        }, status=201)
+
+
+class WalletTokenRemoveView(LoginRequiredMixin, View):
+    """
+    Stop tracking a token for a wallet.
+    DELETE /api/wallet/<wallet_id>/tokens/<token_id>/remove/
+    """
+    def delete(self, request, wallet_id, token_id):
+        try:
+            wallet = Wallet.objects.get(id=wallet_id, user=request.user, is_active=True)
+        except Wallet.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Wallet not found'}, status=404)
+
+        try:
+            wt = WalletToken.objects.get(wallet=wallet, token_id=token_id)
+        except WalletToken.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Token not tracked by this wallet'}, status=404)
+
+        wt.delete()
+        return JsonResponse({'success': True, 'message': 'Token removed from wallet'})
+
+
+class WalletTokenSyncView(LoginRequiredMixin, View):
+    """
+    Sync the on-chain balance and USD value for a tracked token.
+    POST /api/wallet/<wallet_id>/tokens/<token_id>/sync/
+    """
+    def post(self, request, wallet_id, token_id):
+        try:
+            wallet = Wallet.objects.get(id=wallet_id, user=request.user, is_active=True)
+        except Wallet.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Wallet not found'}, status=404)
+
+        try:
+            wt = WalletToken.objects.select_related('token').get(wallet=wallet, token_id=token_id)
+        except WalletToken.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Token not tracked by this wallet'}, status=404)
+
+        rpc_url = NETWORK_RPCS.get(wallet.network.lower())
+        if not rpc_url:
+            return JsonResponse({'success': False, 'error': f'Unsupported network: {wallet.network}'}, status=400)
+
+        try:
+            result = sync_wallet_token_with_price(wt, rpc_url)
+        except Exception:
+            logger.exception('Failed to sync token %s for wallet %s', token_id, wallet_id)
+            return JsonResponse({'success': False, 'error': 'Failed to sync token balance'}, status=502)
+
+        wt.refresh_from_db()
+        return JsonResponse({
+            'success': True,
+            'token_id': token_id,
+            'balance': str(result['balance']),
+            'balance_usd': str(result['balance_usd']),
+            'last_synced_at': wt.last_synced_at.isoformat() if wt.last_synced_at else None,
+        })
