@@ -354,7 +354,366 @@ After MVP, UBlock may expand into:
 
 ---
 
-## 14. Final Note
+## 14. Wallet API Reference
+
+All endpoints require authentication (session or token). Base path: `/api/wallet/`
+
+---
+
+### 14.1 Wallet Management
+
+#### List Wallets
+```
+GET /api/wallet/
+```
+Returns all active wallets for the authenticated user.
+
+**Response**
+```json
+{
+  "success": true,
+  "count": 2,
+  "wallets": [
+    {
+      "id": 1,
+      "wallet_address": "0xAbC...",
+      "network": "ethereum",
+      "label": "Main wallet",
+      "description": null,
+      "balance": "1.234500000000000000",
+      "available_balance": "1.234500000000000000",
+      "locked_balance": "0",
+      "is_verified": true,
+      "is_active": true,
+      "created_at": "2026-05-01T10:00:00Z"
+    }
+  ]
+}
+```
+
+---
+
+#### Create Wallet
+```
+POST /api/wallet/create/
+```
+
+**Body**
+```json
+{
+  "wallet_address": "0xAbC...",
+  "network": "ethereum",
+  "label": "My Wallet",
+  "description": "Optional description"
+}
+```
+
+**Response** `201`
+```json
+{
+  "success": true,
+  "wallet": { "id": 1, "wallet_address": "0xAbC...", "..." }
+}
+```
+
+---
+
+#### Get Wallet
+```
+GET /api/wallet/<wallet_id>/
+```
+
+---
+
+#### Update Wallet
+```
+PUT /api/wallet/<wallet_id>/update/
+```
+
+**Body** — only `label` and `description` are updatable.
+```json
+{
+  "label": "New label",
+  "description": "Updated description"
+}
+```
+
+---
+
+#### Delete Wallet
+```
+DELETE /api/wallet/<wallet_id>/delete/
+```
+Soft-deletes the wallet (`is_active = false`).
+
+---
+
+### 14.2 Wallet Verification
+
+Proves ownership of a wallet address via message signing (two-step).
+
+#### Step 1 — Request challenge
+```
+POST /api/wallet/<wallet_id>/verify/
+```
+```json
+{ "action": "request_challenge", "wallet_address": "0xAbC..." }
+```
+**Response**
+```json
+{ "success": true, "challenge": "Verify wallet ownership - a3f9...", "expires_in": 900 }
+```
+
+#### Step 2 — Submit signature
+```
+POST /api/wallet/<wallet_id>/verify/
+```
+```json
+{
+  "action": "verify_signature",
+  "wallet_address": "0xAbC...",
+  "signature": "0x..."
+}
+```
+**Response**
+```json
+{ "success": true, "message": "Wallet verified successfully", "wallet": { "..." } }
+```
+
+---
+
+### 14.3 Wallet Balance
+
+Fetches the native coin balance live from the blockchain and updates the cached value.
+
+```
+GET /api/wallet/<wallet_id>/balance/
+```
+
+**Response**
+```json
+{
+  "success": true,
+  "wallet_address": "0xAbC...",
+  "network": "ethereum",
+  "balance": "1.234500000000000000",
+  "balance_wei": "1234500000000000000",
+  "symbol": "ETH",
+  "last_updated": "2026-05-07T12:00:00Z"
+}
+```
+
+---
+
+### 14.4 Transaction History
+
+Returns paginated transaction history fetched from the block explorer API.
+
+```
+GET /api/wallet/<wallet_id>/transactions/?page=1&page_size=10
+```
+
+**Response**
+```json
+{
+  "success": true,
+  "wallet_address": "0xAbC...",
+  "network": "ethereum",
+  "page": 1,
+  "page_size": 10,
+  "count": 10,
+  "transactions": [
+    {
+      "hash": "0x...",
+      "block_number": "19000000",
+      "timestamp": "2026-05-07T11:00:00Z",
+      "from": "0x...",
+      "to": "0xAbC...",
+      "value": "0.5",
+      "value_wei": "500000000000000000",
+      "gas": "21000",
+      "gas_used": "21000",
+      "gas_price": "20000000000",
+      "is_error": false,
+      "direction": "incoming",
+      "confirmations": "120"
+    }
+  ]
+}
+```
+
+---
+
+### 14.5 Supported Networks
+
+```
+GET /api/wallet/networks/
+```
+No authentication required.
+
+**Response**
+```json
+{
+  "success": true,
+  "count": 5,
+  "networks": [
+    { "id": "ethereum", "name": "Ethereum", "symbol": "ETH", "chain_id": 1,
+      "explorer_url": "https://etherscan.io", "rpc_url": "https://mainnet.infura.io/v3/" },
+    { "id": "polygon",  "name": "Polygon",  "symbol": "MATIC", "chain_id": 137, "..." },
+    { "id": "bsc",      "name": "BNB Smart Chain", "symbol": "BNB", "chain_id": 56, "..." },
+    { "id": "arbitrum", "name": "Arbitrum One", "symbol": "ETH", "chain_id": 42161, "..." },
+    { "id": "optimism", "name": "Optimism", "symbol": "ETH", "chain_id": 10, "..." }
+  ]
+}
+```
+
+---
+
+### 14.6 Token Registry
+
+Shared registry of known ERC-20 tokens across all users.
+
+#### List Tokens
+```
+GET /api/wallet/tokens/
+GET /api/wallet/tokens/?network=ethereum
+```
+
+**Response**
+```json
+{
+  "success": true,
+  "count": 1,
+  "tokens": [
+    {
+      "id": 1,
+      "contract_address": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+      "symbol": "USDT",
+      "name": "Tether USD",
+      "decimals": 6,
+      "network": "ethereum",
+      "logo_url": null,
+      "coingecko_id": "tether",
+      "is_verified": true,
+      "created_at": "2026-05-01T10:00:00Z"
+    }
+  ]
+}
+```
+
+#### Get Token
+```
+GET /api/wallet/tokens/<token_id>/
+```
+
+---
+
+### 14.7 Wallet Token Management
+
+Each wallet independently tracks a set of ERC-20 tokens with cached balances.
+
+#### List Tracked Tokens
+```
+GET /api/wallet/<wallet_id>/tokens/
+```
+Returns all tokens tracked by the wallet, including cached balance and USD value.
+
+**Response**
+```json
+{
+  "success": true,
+  "count": 1,
+  "tokens": [
+    {
+      "id": 1,
+      "contract_address": "0xdAC17...",
+      "symbol": "USDT",
+      "name": "Tether USD",
+      "decimals": 6,
+      "network": "ethereum",
+      "logo_url": null,
+      "coingecko_id": "tether",
+      "is_verified": true,
+      "created_at": "2026-05-01T10:00:00Z",
+      "balance": "250.000000",
+      "balance_usd": "250.00",
+      "last_synced_at": "2026-05-07T12:00:00Z"
+    }
+  ]
+}
+```
+
+---
+
+#### Add Token to Wallet
+```
+POST /api/wallet/<wallet_id>/tokens/add/
+```
+If the token is not yet in the registry, its symbol and decimals are read directly from the smart contract on-chain.
+
+**Body**
+```json
+{
+  "contract_address": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+  "network": "ethereum",
+  "name": "Tether USD"
+}
+```
+`network` defaults to the wallet's network. `name` is optional — falls back to on-chain symbol.
+
+**Response** `201`
+```json
+{
+  "success": true,
+  "message": "Token added to wallet",
+  "token": { "id": 1, "symbol": "USDT", "decimals": 6, "..." }
+}
+```
+
+**Error cases**
+
+| Status | Reason |
+|--------|--------|
+| 400 | Missing or invalid `contract_address` |
+| 400 | Token already tracked for this wallet |
+| 400 | Unsupported network |
+| 502 | Failed to read metadata from chain |
+
+---
+
+#### Remove Token from Wallet
+```
+DELETE /api/wallet/<wallet_id>/tokens/<token_id>/remove/
+```
+Removes the tracking record. The token entry in the registry is kept.
+
+**Response**
+```json
+{ "success": true, "message": "Token removed from wallet" }
+```
+
+---
+
+#### Sync Token Balance
+```
+POST /api/wallet/<wallet_id>/tokens/<token_id>/sync/
+```
+Fetches the live on-chain balance and current USD price from CoinGecko, then updates the cached values.
+
+**Response**
+```json
+{
+  "success": true,
+  "token_id": 1,
+  "balance": "250.000000",
+  "balance_usd": "250.00",
+  "last_synced_at": "2026-05-07T12:05:00Z"
+}
+```
+
+---
+
+## 15. Final Note
 
 UBlock should be approached as a **product platform**, not only as a crypto idea.
 
