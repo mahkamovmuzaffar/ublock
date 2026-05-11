@@ -9,7 +9,7 @@ from django.views import View
 from .models import User
 
 logger = logging.getLogger(__name__)
-
+# TODO: Add more granular logging throughout the views for better observability and debugging.
 
 class UserRegisterView(View):
     """
