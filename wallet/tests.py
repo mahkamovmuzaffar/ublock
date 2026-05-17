@@ -14,3 +14,6 @@ def test_create_wallet(self):
     self.assertIsNotNone(wallet)
     self.assertEqual(wallet.user, self.user)
     self.assertEqual(wallet.balance, 0)
+
+# Example test case for adding funds to a wallet
+def test_add_funds(self):   
