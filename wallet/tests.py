@@ -16,4 +16,12 @@ def test_create_wallet(self):
     self.assertEqual(wallet.balance, 0)
 
 # Example test case for adding funds to a wallet
-def test_add_funds(self):   
+def test_add_funds(self):    
+    # Create a new wallet for a user
+    wallet = Wallet.objects.create(user=self.user, balance=0)
+    
+    # Add funds to the wallet
+    wallet.add_funds(100)
+    
+    # Check that the balance was updated correctly
+    self.assertEqual(wallet.balance, 100)   
