@@ -26,4 +26,22 @@ def test_add_funds(self):
     # Check that the balance was updated correctly
     self.assertEqual(wallet.balance, 100)
 
-def test_make_transaction(self):   
+def test_make_transaction(self):
+    # Create two wallets for two users
+    wallet1 = Wallet.objects.create(user=self.user1, balance=100)
+    wallet2 = Wallet.objects.create(user=self.user2, balance=50)
+    
+    # Make a transaction from wallet1 to wallet2
+    transaction = Transaction.objects.create(sender=wallet1, receiver=wallet2, amount=30)
+    
+    # Check that the transaction was created successfully
+    self.assertIsNotNone(transaction)
+    self.assertEqual(transaction.sender, wallet1)
+    self.assertEqual(transaction.receiver, wallet2)
+    self.assertEqual(transaction.amount, 30)
+    
+    # Check that the balances were updated correctly
+    wallet1.refresh_from_db()
+    wallet2.refresh_from_db()
+    self.assertEqual(wallet1.balance, 70)
+    self.assertEqual(wallet2.balance, 80)      
