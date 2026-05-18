@@ -24,4 +24,6 @@ def test_add_funds(self):
     wallet.add_funds(100)
     
     # Check that the balance was updated correctly
-    self.assertEqual(wallet.balance, 100)   
+    self.assertEqual(wallet.balance, 100)
+
+def test_make_transaction(self):   
