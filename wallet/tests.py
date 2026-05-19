@@ -54,4 +54,10 @@ def test_insufficient_funds(self):
     with self.assertRaises(InsufficientFundsError):
         wallet.make_transaction(receiver_wallet, 20)   
 
-def test_invalid_transaction(self):
+def test_invalid_transaction(self):    
+    # Create a wallet for a user
+    wallet = Wallet.objects.create(user=self.user, balance=100)
+    
+    # Attempt to make a transaction with an invalid receiver
+    with self.assertRaises(InvalidTransactionError):
+        wallet.make_transaction(None, 50)
