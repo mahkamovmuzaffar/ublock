@@ -44,4 +44,7 @@ def test_make_transaction(self):
     wallet1.refresh_from_db()
     wallet2.refresh_from_db()
     self.assertEqual(wallet1.balance, 70)
-    self.assertEqual(wallet2.balance, 80)      
+    self.assertEqual(wallet2.balance, 80)   
+
+def test_insufficient_funds(self):
+    
