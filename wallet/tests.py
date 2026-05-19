@@ -47,4 +47,9 @@ def test_make_transaction(self):
     self.assertEqual(wallet2.balance, 80)   
 
 def test_insufficient_funds(self):
+    # Create a wallet with insufficient funds
+    wallet = Wallet.objects.create(user=self.user, balance=10)
     
+    # Attempt to make a transaction that exceeds the balance
+    with self.assertRaises(InsufficientFundsError):
+        wallet.make_transaction(receiver_wallet, 20)   
