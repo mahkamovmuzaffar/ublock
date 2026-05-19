@@ -62,4 +62,10 @@ def test_invalid_transaction(self):
     with self.assertRaises(InvalidTransactionError):
         wallet.make_transaction(None, 50)
 
-def test_invalid_amount(self):
+def test_invalid_amount(self):     
+    # Create a wallet for a user
+    wallet = Wallet.objects.create(user=self.user, balance=100)
+    
+    # Attempt to make a transaction with an invalid amount
+    with self.assertRaises(InvalidAmountError):
+        wallet.make_transaction(receiver_wallet, -10)
