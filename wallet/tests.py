@@ -53,3 +53,5 @@ def test_insufficient_funds(self):
     # Attempt to make a transaction that exceeds the balance
     with self.assertRaises(InsufficientFundsError):
         wallet.make_transaction(receiver_wallet, 20)   
+
+def test_invalid_transaction(self):
