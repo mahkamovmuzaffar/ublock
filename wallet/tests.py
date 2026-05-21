@@ -70,4 +70,16 @@ def test_invalid_amount(self):
     with self.assertRaises(InvalidAmountError):
         wallet.make_transaction(receiver_wallet, -10)
 
-def test_transaction_history(self):
+def test_transaction_history(self): 
+    # Create a wallet for a user
+    wallet = Wallet.objects.create(user=self.user, balance=100)
+    
+    # Make a few transactions
+    wallet.make_transaction(receiver_wallet, 20)
+    wallet.make_transaction(receiver_wallet, 30)
+    
+    # Check that the transaction history is correct
+    history = wallet.get_transaction_history()
+    self.assertEqual(len(history), 2)
+    self.assertEqual(history[0].amount, 20)
+    self.assertEqual(history[1].amount, 30)
