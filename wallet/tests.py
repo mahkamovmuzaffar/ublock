@@ -69,3 +69,5 @@ def test_invalid_amount(self):
     # Attempt to make a transaction with an invalid amount
     with self.assertRaises(InvalidAmountError):
         wallet.make_transaction(receiver_wallet, -10)
+
+def test_transaction_history(self):
