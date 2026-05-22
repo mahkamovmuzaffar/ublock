@@ -85,3 +85,11 @@ def test_transaction_history(self):
     self.assertEqual(history[1].amount, 30)
 
 def test_wallet_deletion(self):
+    # Create a wallet for a user
+    wallet = Wallet.objects.create(user=self.user, balance=100)
+    
+    # Delete the wallet
+    wallet.delete()
+    
+    # Check that the wallet was deleted successfully
+    self.assertFalse(Wallet.objects.filter(pk=wallet.pk).exists())
