@@ -1,5 +1,7 @@
 from django.test import TestCase
 
+from wallet.models import Wallet
+
 # Create your tests here.
 # TODO: Add tests for wallet functionality, such as creating a wallet, adding funds, and making transactions.
 # TODO: Test edge cases, such as insufficient funds and invalid transactions.   
@@ -92,4 +94,6 @@ def test_wallet_deletion(self):
     wallet.delete()
     
     # Check that the wallet was deleted successfully
-    self.assertFalse(Wallet.objects.filter(pk=wallet.pk).exists())
+    self.assertFalse(Wallet.objects.filter(pk=wallet.pk).exists())  
+
+def test_wallet_str(self):
