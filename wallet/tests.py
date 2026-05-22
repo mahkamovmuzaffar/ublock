@@ -83,3 +83,5 @@ def test_transaction_history(self):
     self.assertEqual(len(history), 2)
     self.assertEqual(history[0].amount, 20)
     self.assertEqual(history[1].amount, 30)
+
+def test_wallet_deletion(self):
