@@ -96,4 +96,11 @@ def test_wallet_deletion(self):
     # Check that the wallet was deleted successfully
     self.assertFalse(Wallet.objects.filter(pk=wallet.pk).exists())  
 
-def test_wallet_str(self):
+def test_wallet_str(self):      
+    # Create a wallet for a user
+    wallet = Wallet.objects.create(user=self.user, balance=100)
+    
+    # Check the string representation of the wallet
+    self.assertEqual(str(wallet), f"Wallet of {self.user.username} with balance {wallet.balance}")
+
+def test_wallet_balance_update(self):
