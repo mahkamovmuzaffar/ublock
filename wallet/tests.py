@@ -103,4 +103,14 @@ def test_wallet_str(self):
     # Check the string representation of the wallet
     self.assertEqual(str(wallet), f"Wallet of {self.user.username} with balance {wallet.balance}")
 
-def test_wallet_balance_update(self):
+def test_wallet_balance_update(self):   
+    # Create a wallet for a user
+    wallet = Wallet.objects.create(user=self.user, balance=100)
+    
+    # Update the balance of the wallet
+    wallet.balance += 50
+    wallet.save()
+    
+    # Check that the balance was updated correctly
+    wallet.refresh_from_db()
+    self.assertEqual(wallet.balance, 150)
