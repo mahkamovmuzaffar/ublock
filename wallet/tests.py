@@ -114,3 +114,5 @@ def test_wallet_balance_update(self):
     # Check that the balance was updated correctly
     wallet.refresh_from_db()
     self.assertEqual(wallet.balance, 150)
+
+def test_wallet_user_relation(self):
