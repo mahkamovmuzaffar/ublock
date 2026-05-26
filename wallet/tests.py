@@ -115,4 +115,9 @@ def test_wallet_balance_update(self):
     wallet.refresh_from_db()
     self.assertEqual(wallet.balance, 150)
 
-def test_wallet_user_relation(self):
+def test_wallet_user_relation(self):        
+    # Create a wallet for a user
+    wallet = Wallet.objects.create(user=self.user, balance=100)
+    
+    # Check that the wallet is related to the correct user
+    self.assertEqual(wallet.user, self.user)
