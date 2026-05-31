@@ -121,3 +121,11 @@ def test_wallet_user_relation(self):
     
     # Check that the wallet is related to the correct user
     self.assertEqual(wallet.user, self.user)
+
+def test_wallet_unique_user(self):
+    # Create a wallet for a user
+    wallet1 = Wallet.objects.create(user=self.user, balance=100)
+    
+    # Attempt to create another wallet for the same user
+    with self.assertRaises(IntegrityError):
+        Wallet.objects.create(user=self.user, balance=50)
