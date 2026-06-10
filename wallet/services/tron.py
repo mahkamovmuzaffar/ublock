@@ -65,12 +65,22 @@ def fetch_trc20_token_metadata(node_url, contract_address):
     """
     Read symbol and decimals from a TRC-20 contract.
 
+    Useful for bootstrapping a new token record without knowing its metadata
+    in advance — call this once when adding a contract address to the database
+    instead of hard-coding values.
+
     Args:
-        node_url         — HTTP endpoint of the TRON node
-        contract_address — the TRC-20 contract address
+        node_url         — HTTP endpoint of the TRON node.
+        contract_address — Base58Check-encoded address of the TRC-20 contract.
 
     Returns:
-        dict with keys: 'symbol' (str), 'decimals' (int)
+        dict with keys:
+            'symbol'   (str) — ticker symbol as declared by the contract (e.g. 'USDT').
+            'decimals' (int) — number of decimal places used by the token.
+
+    Raises:
+        RuntimeError        — if tronpy is not installed.
+        tronpy.exceptions.* — on RPC errors or if the address is not a valid contract.
     """
     client = _get_tron_client(node_url)
     contract = client.get_contract(contract_address)
