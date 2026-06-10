@@ -95,13 +95,34 @@ def sync_trc20_wallet_token(wallet_token, node_url, usd_price=None):
     """
     Refresh the cached balance for a single TRC-20 WalletToken record.
 
+    Fetches the live on-chain balance via `fetch_trc20_token_balance`, then
+    updates the WalletToken row's `balance`, `balance_usd`, and
+    `last_synced_at` fields in a single partial save (only those three columns
+    are written to the database).
+
+    If `usd_price` is supplied, `balance_usd` is recalculated as
+    `balance * usd_price`; otherwise the existing `balance_usd` value on the
+    model instance is preserved unchanged.
+
     Args:
-        wallet_token — WalletToken model instance to update
-        node_url     — HTTP endpoint of the TRON node
-        usd_price    — current USD price of the token (Decimal or float), optional.
+        wallet_token — WalletToken model instance whose balance should be refreshed.
+                       Must have related `wallet` (with `wallet_address`) and
+                       `token` (with `contract_address` and `decimals`) accessible.
+        node_url     — HTTP endpoint of the TRON node used to query the chain.
+        usd_price    — Optional current USD price of the token as a Decimal or
+                       float. Pass None to skip recalculating the USD value.
 
     Returns:
-        Decimal — the updated human-readable balance
+        Decimal — the updated human-readable on-chain balance after the save.
+
+    Side effects:
+        - Writes `balance`, `balance_usd`, `last_synced_at` to the database.
+        - Emits an INFO log line with the wallet address and new balances.
+
+    Raises:
+        RuntimeError        — if tronpy is not installed.
+        tronpy.exceptions.* — on RPC errors (balance fetch fails, node unreachable, etc.).
+        django.db.DatabaseError — if the database save fails.
     """
     token = wallet_token.token
 
