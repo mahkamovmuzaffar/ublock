@@ -129,3 +129,8 @@ def test_wallet_unique_user(self):
     # Attempt to create another wallet for the same user
     with self.assertRaises(IntegrityError):
         Wallet.objects.create(user=self.user, balance=50)
+
+
+
+        def test_wallet_multiple_users(self):
+    # Create wallets for multiple users
