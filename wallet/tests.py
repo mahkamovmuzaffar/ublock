@@ -132,5 +132,11 @@ def test_wallet_unique_user(self):
 
 
 
-        def test_wallet_multiple_users(self):
-    # Create wallets for multiple users
+def test_wallet_multiple_users(self):
+        # Create wallets for multiple users
+        wallet1 = Wallet.objects.create(user=self.user, balance=100)
+        wallet2 = Wallet.objects.create(user=self.user2, balance=200)
+
+        # Check that each wallet is related to the correct user
+        self.assertEqual(wallet1.user, self.user)
+        self.assertEqual(wallet2.user, self.user2)
