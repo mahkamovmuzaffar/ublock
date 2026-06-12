@@ -142,3 +142,10 @@ def test_wallet_multiple_users(self):
     self.assertEqual(wallet2.user, self.user2)
 
 def test_wallet_balance_negative(self):
+    # Create a wallet for a user
+    wallet = Wallet.objects.create(user=self.user, balance=100)
+
+    # Attempt to set a negative balance
+    with self.assertRaises(ValidationError):
+        wallet.balance = -50
+        wallet.save()
