@@ -140,3 +140,5 @@ def test_wallet_multiple_users(self):
     # Check that each wallet is related to the correct user
     self.assertEqual(wallet1.user, self.user)
     self.assertEqual(wallet2.user, self.user2)
+
+def test_wallet_balance_negative(self):
