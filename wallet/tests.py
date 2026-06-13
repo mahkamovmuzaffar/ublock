@@ -149,3 +149,7 @@ def test_wallet_balance_negative(self):
     with self.assertRaises(ValidationError):
         wallet.balance = -50
         wallet.save()
+
+
+def test_wallet_transfer(self):
+   
