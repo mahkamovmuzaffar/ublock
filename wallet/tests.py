@@ -152,4 +152,16 @@ def test_wallet_balance_negative(self):
 
 
 def test_wallet_transfer(self):
+    # Create two wallets for two users
+    wallet1 = Wallet.objects.create(user=self.user1, balance=100)
+    wallet2 = Wallet.objects.create(user=self.user2, balance=50)
+
+    # Transfer funds from wallet1 to wallet2
+    wallet1.transfer(wallet2, 30)
+
+    # Check that the balances were updated correctly
+    wallet1.refresh_from_db()
+    wallet2.refresh_from_db()
+    self.assertEqual(wallet1.balance, 70)
+    self.assertEqual(wallet2.balance, 80)
    
