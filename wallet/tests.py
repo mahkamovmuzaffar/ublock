@@ -165,3 +165,5 @@ def test_wallet_transfer(self):
     self.assertEqual(wallet1.balance, 70)
     self.assertEqual(wallet2.balance, 80)
    
+def test_wallet_transfer_insufficient_funds(self):
+    
