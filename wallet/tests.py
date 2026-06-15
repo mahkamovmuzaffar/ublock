@@ -166,4 +166,11 @@ def test_wallet_transfer(self):
     self.assertEqual(wallet2.balance, 80)
    
 def test_wallet_transfer_insufficient_funds(self):
+    # Create two wallets for two users
+    wallet1 = Wallet.objects.create(user=self.user1, balance=20)
+    wallet2 = Wallet.objects.create(user=self.user2, balance=50)
+
+    # Attempt to transfer funds from wallet1 to wallet2 with insufficient funds
+    with self.assertRaises(InsufficientFundsError):
+        wallet1.transfer(wallet2, 30)
     
