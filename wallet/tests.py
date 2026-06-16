@@ -173,4 +173,6 @@ def test_wallet_transfer_insufficient_funds(self):
     # Attempt to transfer funds from wallet1 to wallet2 with insufficient funds
     with self.assertRaises(InsufficientFundsError):
         wallet1.transfer(wallet2, 30)
+
+def test_wallet_transfer_invalid_receiver(self):
     
