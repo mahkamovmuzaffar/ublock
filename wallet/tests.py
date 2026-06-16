@@ -175,4 +175,10 @@ def test_wallet_transfer_insufficient_funds(self):
         wallet1.transfer(wallet2, 30)
 
 def test_wallet_transfer_invalid_receiver(self):
+    # Create a wallet for a user
+    wallet = Wallet.objects.create(user=self.user, balance=100)
+
+    # Attempt to transfer funds to an invalid receiver
+    with self.assertRaises(InvalidTransactionError):
+        wallet.transfer(None, 30)
     
