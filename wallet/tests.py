@@ -181,4 +181,6 @@ def test_wallet_transfer_invalid_receiver(self):
     # Attempt to transfer funds to an invalid receiver
     with self.assertRaises(InvalidTransactionError):
         wallet.transfer(None, 30)
+
+def test_wallet_transfer_invalid_amount(self):
     
