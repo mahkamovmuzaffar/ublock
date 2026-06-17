@@ -183,4 +183,11 @@ def test_wallet_transfer_invalid_receiver(self):
         wallet.transfer(None, 30)
 
 def test_wallet_transfer_invalid_amount(self):
+    # Create two wallets for two users
+    wallet1 = Wallet.objects.create(user=self.user1, balance=100)
+    wallet2 = Wallet.objects.create(user=self.user2, balance=50)
+
+    # Attempt to transfer an invalid amount
+    with self.assertRaises(InvalidAmountError):
+        wallet1.transfer(wallet2, -10)
     
