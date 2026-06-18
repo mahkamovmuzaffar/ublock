@@ -190,4 +190,6 @@ def test_wallet_transfer_invalid_amount(self):
     # Attempt to transfer an invalid amount
     with self.assertRaises(InvalidAmountError):
         wallet1.transfer(wallet2, -10)
+
+def test_wallet_transfer_transaction_history(self):
     
