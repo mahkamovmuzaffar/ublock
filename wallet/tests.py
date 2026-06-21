@@ -192,4 +192,18 @@ def test_wallet_transfer_invalid_amount(self):
         wallet1.transfer(wallet2, -10)
 
 def test_wallet_transfer_transaction_history(self):
+    # Create two wallets for two users
+    wallet1 = Wallet.objects.create(user=self.user1, balance=100)
+    wallet2 = Wallet.objects.create(user=self.user2, balance=50)
+
+    # Transfer funds from wallet1 to wallet2
+    wallet1.transfer(wallet2, 30)
+
+    # Check that the transaction history is updated correctly
+    history1 = wallet1.get_transaction_history()
+    history2 = wallet2.get_transaction_history()
+    self.assertEqual(len(history1), 1)
+    self.assertEqual(len(history2), 1)
+    self.assertEqual(history1[0].amount, 30)
+    self.assertEqual(history2[0].amount, 30)
     
