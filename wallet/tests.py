@@ -206,4 +206,8 @@ def test_wallet_transfer_transaction_history(self):
     self.assertEqual(len(history2), 1)
     self.assertEqual(history1[0].amount, 30)
     self.assertEqual(history2[0].amount, 30)
+
+
+def test_wallet_transfer_atomicity(self):
+   
     
