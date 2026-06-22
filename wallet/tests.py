@@ -209,5 +209,19 @@ def test_wallet_transfer_transaction_history(self):
 
 
 def test_wallet_transfer_atomicity(self):
-   
+    # Create two wallets for two users
+    wallet1 = Wallet.objects.create(user=self.user1, balance=100)
+    wallet2 = Wallet.objects.create(user=self.user2, balance=50)
+
+    # Simulate an error during the transfer to test atomicity
+    with self.assertRaises(Exception):
+        with transaction.atomic():
+            wallet1.transfer(wallet2, 30)
+            raise Exception("Simulated error")
+
+    # Check that the balances were not updated due to the error
+    wallet1.refresh_from_db()
+    wallet2.refresh_from_db()
+    self.assertEqual(wallet1.balance, 100)
+    self.assertEqual(wallet2.balance, 50)
     
