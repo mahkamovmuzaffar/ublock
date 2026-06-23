@@ -224,4 +224,6 @@ def test_wallet_transfer_atomicity(self):
     wallet2.refresh_from_db()
     self.assertEqual(wallet1.balance, 100)
     self.assertEqual(wallet2.balance, 50)
+
+def test_wallet_transfer_concurrent(self):
     
