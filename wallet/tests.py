@@ -226,4 +226,22 @@ def test_wallet_transfer_atomicity(self):
     self.assertEqual(wallet2.balance, 50)
 
 def test_wallet_transfer_concurrent(self):
+    # Create two wallets for two users
+    wallet1 = Wallet.objects.create(user=self.user1, balance=100)
+    wallet2 = Wallet.objects.create(user=self.user2, balance=50)
+
+    # Simulate concurrent transfers
+    def transfer_funds():
+        wallet1.transfer(wallet2, 30)
+
+    thread1 = threading.Thread(target=transfer_funds)
+    thread2 = threading.Thread(target=transfer_funds)
+
+    thread1.start()
+    thread2.start()
+
+    thread1.join()
+    thread2.join()
+
+    # Check that the balances were updated correctly and
     
