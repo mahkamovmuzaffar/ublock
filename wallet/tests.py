@@ -234,14 +234,16 @@ def test_wallet_transfer_concurrent(self):
     def transfer_funds():
         wallet1.transfer(wallet2, 30)
 
+    # Use threading to simulate concurrent transfers
     thread1 = threading.Thread(target=transfer_funds)
     thread2 = threading.Thread(target=transfer_funds)
 
+    # Start the threads
     thread1.start()
     thread2.start()
 
     thread1.join()
     thread2.join()
 
-    # Check that the balances were updated correctly and
+    # Check that the balances were updated correctly and  
     
