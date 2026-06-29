@@ -246,4 +246,8 @@ def test_wallet_transfer_concurrent(self):
     thread2.join()
 
     # Check that the balances were updated correctly and  
+
+    
+def test_wallet_transfer_concurrent_atomicity(self):
+    
     
