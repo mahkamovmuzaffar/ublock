@@ -249,5 +249,14 @@ def test_wallet_transfer_concurrent(self):
 
     
 def test_wallet_transfer_concurrent_atomicity(self):
-    
+    # Create two wallets for two users
+    wallet1 = Wallet.objects.create(user=self.user1, balance=100)
+    wallet2 = Wallet.objects.create(user=self.user2, balance=50)
+
+    # Simulate concurrent transfers with atomicity
+    def transfer_funds():
+        with transaction.atomic():
+            wallet1.transfer(wallet2, 30)
+
+   
     
