@@ -257,6 +257,21 @@ def test_wallet_transfer_concurrent_atomicity(self):
     def transfer_funds():
         with transaction.atomic():
             wallet1.transfer(wallet2, 30)
+ # Use threading to simulate concurrent transfers
+    thread1 = threading.Thread(target=transfer_funds)
+    thread2 = threading.Thread(target=transfer_funds)
 
+    # Start the threads
+    thread1.start()
+    thread2.start()
+
+    thread1.join()
+    thread2.join()
+
+    # Check that the balances were updated correctly and no data corruption occurred
+    wallet1.refresh_from_db()
+    wallet2.refresh_from_db()
+    self.assertEqual(wallet1.balance, 40)  # 100 - 30 - 30
+    self.assertEqual(wallet2.balance, 110)  # 50 + 30 + 30 
    
     
